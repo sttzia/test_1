@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Notes</title>
+    <link rel="stylesheet" href="/static/app.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Notes</h1>
+      <button id="newNoteBtn" title="Create new note">New</button>
+    </header>
+    <main>
+      <aside id="listPane">
+        <input id="searchInput" type="search" placeholder="Search…" />
+        <ul id="notesList"></ul>
+      </aside>
+      <section id="editorPane">
+        <input id="titleInput" type="text" placeholder="Title" />
+        <textarea
+          id="contentInput"
+          placeholder="Write your note here…"
+        ></textarea>
+        <div class="actions">
+          <button id="saveBtn">Save</button>
+          <button id="deleteBtn" class="danger">Delete</button>
+          <span id="status"></span>
+        </div>
+      </section>
+    </main>
+    <script src="/static/app.js"></script>
+  </body>
+</html>

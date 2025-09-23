@@ -1,0 +1,38 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Test/coverage
+.pytest_cache/
+.coverage
+coverage.xml
+
+# Build outputs
+build/
+dist/
+*.egg-info/
+
+# VS Code / IDEs
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Local data
+instance/*.db
+instance/*.sqlite
+instance/*.sqlite3
+
+# Node (just in case)
+node_modules/

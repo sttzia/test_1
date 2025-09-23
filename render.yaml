@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: flask-notes
+    runtime: python
+    region: oregon
+    plan: free
+    pythonVersion: 3.11.9
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: DATABASE
+        value: instance/notes.db
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn wsgi:app --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 120
+    healthCheckPath: /
