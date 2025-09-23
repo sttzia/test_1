@@ -210,7 +210,10 @@ def create_app(test_config: Optional[dict] = None) -> Flask:
     return app
 
 
+# Expose module-level WSGI app for Gunicorn ('gunicorn app:app')
+app = create_app()
+
+
 # Allow `python app.py` to run the dev server
 if __name__ == "__main__":
-    app = create_app()
     app.run(debug=True)
