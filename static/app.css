@@ -158,3 +158,9 @@ main {
   color: var(--muted);
   margin-left: 0.5rem;
 }
+
+#timestamp {
+  color: var(--muted);
+  margin-left: auto; /* push to far right in actions row */
+  white-space: nowrap;
+}

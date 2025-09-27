@@ -64,6 +64,19 @@ function renderList() {
   }
 }
 
+function startClock() {
+  const el = document.getElementById("timestamp");
+  if (!el) return;
+  const tick = () => {
+    const now = new Date();
+    el.textContent = now.toLocaleString();
+    el.title = now.toISOString();
+  };
+  tick();
+  if (state._clock) clearInterval(state._clock);
+  state._clock = setInterval(tick, 1000);
+}
+
 function setStatus(msg, timeout = 1200) {
   const s = $("#status");
   s.textContent = msg;
@@ -160,6 +173,7 @@ function attachEvents() {
 async function init() {
   attachEvents();
   await loadNotes();
+  startClock();
 }
 
 init().catch((err) => {

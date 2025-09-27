@@ -1,9 +1,14 @@
 import os
 import sqlite3
-from datetime import datetime, timezone
+import threading
+import time
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 from flask import Flask, jsonify, render_template, request, g, current_app
+
+# Ensure only one waker thread per process
+_WAKER_STARTED = threading.Event()
 
 
 def _utc_now_iso() -> str:
@@ -90,6 +95,20 @@ def create_app(test_config: Optional[dict] = None) -> Flask:
         if env_db:
             app.config["DATABASE"] = env_db
 
+    # Config for background waker (interval and TTL in seconds)
+    app.config.setdefault("ENABLE_WAKER", True)
+    # Allow env overrides; default to 30 seconds for both interval and TTL
+    try:
+        interval_env = float(os.environ.get("WAKER_INTERVAL", "30"))
+    except ValueError:
+        interval_env = 30.0
+    try:
+        ttl_env = float(os.environ.get("WAKER_TTL", "30"))
+    except ValueError:
+        ttl_env = 30.0
+    app.config.setdefault("WAKER_INTERVAL", interval_env)
+    app.config.setdefault("WAKER_TTL", ttl_env)
+
     # Decide whether to persist a single DB connection (for in-memory DBs this keeps the DB alive across requests)
     db_cfg = str(app.config.get("DATABASE", ""))
     if any(
@@ -118,13 +137,6 @@ def create_app(test_config: Optional[dict] = None) -> Flask:
     def index():
         return render_template("index.html")
 
-    # Static file cache headers (dev-friendly)
-    @app.after_request
-    def add_header(response):
-        response.headers["Cache-Control"] = "no-store"
-        return response
-
-    # API
     @app.get("/api/notes")
     def list_notes():
         db = get_db()
@@ -206,6 +218,73 @@ def create_app(test_config: Optional[dict] = None) -> Flask:
         if cur.rowcount == 0:
             return jsonify({"error": "Not found"}), 404
         return ("", 204)
+
+    # Background waker: insert a 'Wake Up!' note every 30s and delete it 30s later
+    def _delete_note_later(note_id: int, delay: Optional[float] = None):
+        if delay is None:
+            delay = float(app.config.get("WAKER_TTL", 30.0))
+
+        def _run():
+            try:
+                time.sleep(delay)
+                with app.app_context():
+                    db = get_db()
+                    db.execute("DELETE FROM notes WHERE id = ?", (note_id,))
+                    db.commit()
+            except Exception:
+                # swallow errors; this is best-effort housekeeping
+                pass
+
+        t = threading.Thread(target=_run, daemon=True)
+        t.start()
+
+    def _waker_main():
+        # Initial delay so the first note is created after the interval
+        try:
+            time.sleep(float(app.config.get("WAKER_INTERVAL", 30.0)))
+        except Exception:
+            pass
+        while True:
+            try:
+                with app.app_context():
+                    # 1) Sweep first: delete only notes strictly older than TTL
+                    ttl = float(app.config.get("WAKER_TTL", 30.0))
+                    cutoff = (
+                        (datetime.now(timezone.utc) - timedelta(seconds=ttl))
+                        .replace(microsecond=0)
+                        .isoformat()
+                        .replace("+00:00", "Z")
+                    )
+                    db = get_db()
+                    db.execute(
+                        "DELETE FROM notes WHERE title = ? AND content = ? AND updated_at <= ?",
+                        ("Wake Up!", "Waking server..", cutoff),
+                    )
+                    db.commit()
+
+                    # 2) Then insert a fresh Wake Up note
+                    ts = _utc_now_iso()
+                    cur = db.execute(
+                        "INSERT INTO notes (title, content, updated_at) VALUES (?, ?, ?)",
+                        ("Wake Up!", "Waking server..", ts),
+                    )
+                    db.commit()
+                    nid = cur.lastrowid
+                _delete_note_later(nid, delay=float(app.config.get("WAKER_TTL", 30.0)))
+            except Exception:
+                # best-effort; skip cycle on error
+                pass
+            finally:
+                time.sleep(float(app.config.get("WAKER_INTERVAL", 30.0)))
+
+    if app.config.get("ENABLE_WAKER", True) and not app.config.get("TESTING"):
+        # Start only once per process; with reloader, only in the child process
+        should_start = (not app.debug) or (
+            os.environ.get("WERKZEUG_RUN_MAIN") == "true"
+        )
+        if should_start and not _WAKER_STARTED.is_set():
+            _WAKER_STARTED.set()
+            threading.Thread(target=_waker_main, daemon=True).start()
 
     return app
 
